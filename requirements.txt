@@ -1,0 +1,6 @@
+pandas
+openai
+psycopg[binary]
+pgvector
+python-dotenv
+langchain-text-splitters
