@@ -4,3 +4,4 @@ psycopg[binary]
 pgvector
 python-dotenv
 langchain-text-splitters
+langgraph
