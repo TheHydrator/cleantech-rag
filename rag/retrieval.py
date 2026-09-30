@@ -18,3 +18,13 @@ def search(conn, query_vec, k=5):
            LIMIT %s""",
         (query_vec, query_vec, k),
     ).fetchall()
+
+def merge_by_article(primary, secondary, limit=10):
+    """Same merge as the notebook: one chunk per article, primary results first."""
+    seen, merged = set(), []
+    for row in primary + secondary:
+        article_id = row[0]
+        if article_id not in seen:
+            seen.add(article_id)
+            merged.append(row)
+    return merged[:limit]
