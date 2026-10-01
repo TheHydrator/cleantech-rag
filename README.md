@@ -2,6 +2,36 @@
 
 Production redeploy of my Agentic RAG system: FastAPI, Postgres + pgvector, Docker, k3s.
 
+## Pipeline
+
+Built as a LangGraph graph: `retrieve → generate`. A grader node is planned next.
+
+1. **Embed the question** with `text-embedding-3-small` (1536 dims).
+2. **Vector search** in Postgres + pgvector using an HNSW index (`ef_search=200`). Fetch the 20 nearest chunks.
+3. **Rerank** those 20 chunks with the cross-encoder `cross-encoder/ms-marco-MiniLM-L-6-v2`, and keep the top 10.
+4. **Generate** an answer with `gpt-4-turbo`, using only the retrieved chunks and citing article IDs. If the chunks don't contain the answer, the model says so instead of guessing.
+
+### Why rerank?
+
+Embedding search compares the question and each chunk *separately*, as two vectors. A cross-encoder reads the question and a chunk *together* and scores how well that chunk answers the question. It's more accurate but much slower, so it only runs on the 20 candidates from vector search, not on all 131,587 chunks.
+
+### Why 10 chunks?
+
+Most eval questions compare two things and need two different articles. With 5 chunks, the second article was often cut off and the model refused to answer. Sending 10 halved the refusals.
+
+### Settings
+
+All configurable through environment variables:
+
+| Variable | Value | Purpose |
+|---|---|---|
+| `HNSW_EF_SEARCH` | 200 | HNSW search breadth |
+| `FETCH_K` | 20 | chunks fetched before reranking |
+| `RERANK` | true | enable the reranker |
+| `RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | reranker model |
+| `TOP_K` | 10 | chunks sent to the LLM |
+| `LLM_MODEL` | `gpt-4-turbo` | answer model |
+
 ## Database schema
 
 ```mermaid
@@ -25,21 +55,60 @@ erDiagram
 
 ## Findings
 
-All retrieval numbers: 50-question multi-document eval set, 131,587 chunks, `text-embedding-3-small`.
+Eval set: 50 multi-document questions, each with a reference answer and the IDs of the articles needed to answer it. Corpus: 20,111 articles, 131,587 chunks.
 
-### HNSW `ef_search` tuning
+### 1. HNSW `ef_search` tuning (retrieval)
 
 | ef_search | recall@5 | recall@10 | recall@20 | search p50 |
 |---|---|---|---|---|
 | 40 (default) | 0.383 | 0.443 | 0.533 | ~28 ms |
 | 100 | 0.413 | 0.483 | 0.583 | not measured |
-| 200 | 0.423–0.433 | 0.493 | 0.593 | ~60 ms |
+| 200 | 0.433 | 0.493 | 0.593 | ~60 ms |
 | exact (no index) | 0.423 | 0.493 | 0.603 | seconds |
 
-Raising `ef_search` from 40 to 200 recovered most of the recall lost to approximate search, at ~30–40 ms higher median latency. LLM generation takes ~11 s per query, so retrieval latency is not the bottleneck.
+The default setting was silently losing recall. Raising it to 200 recovered nearly all of it for ~30–40 ms extra. Question embeddings are cached, so retrieval eval results are reproducible run to run.
 
-Recall@5 varies by about ±0.01 between runs because the embedding API is not perfectly deterministic.
+### 2. Rerankers (retrieval)
 
-### Known hard case
+Fetch top 20, rerank, measure recall at the new positions.
 
-Iceland geothermal turbines (answer: Japan, article 47341): the correct chunk ranks #12 by exact search, so top-5 retrieval misses it. Candidate fix: retrieve top 20, then rerank.
+| Setup | recall@5 | recall@10 | rerank p50 | rerank p95 |
+|---|---|---|---|---|
+| no reranker | 0.433 | 0.493 | n/a | n/a |
+| MiniLM (90 MB) | 0.447 | 0.547 | ~100 ms | ~200 ms |
+| bge-reranker-base (~1 GB) | 0.473 | 0.523 | ~540 ms | ~3.9 s |
+
+Latency measured on an M2 MacBook (CPU), so it will differ on a server.
+
+### 3. End-to-end answer quality
+
+Each answer scored 1–5 by an LLM judge against the reference answer.
+
+| Setup | Avg score | Refusals | Recall | Latency p50 | Tokens in |
+|---|---|---|---|---|---|
+| baseline (5 chunks) | 3.00 | 10 | 0.423 | 10.0 s | 1,071 |
+| HyDE | 2.94 | 10 | 0.443 | 16.9 s | 1,143 |
+| bge rerank, 5 chunks | 3.12 | 10 | 0.473 | 13.2 s | 1,072 |
+| 10 chunks | 3.30 | 7 | 0.493 | 10.9 s | 2,053 |
+| **MiniLM rerank, 10 chunks** | **3.44** | **5** | **0.547** | **10.6 s** | 2,052 |
+
+**Chosen setup: MiniLM rerank, fetch 20, keep 10.** Best on every quality measure, with no extra latency over plain 10-chunk retrieval.
+
+Retrieval metrics alone pointed toward bge at top 5. The answer-level eval showed MiniLM with 10 chunks wins clearly. Reranker choice and chunk count have to be evaluated together.
+
+HyDE did not help here, but this implementation keeps only one chunk per article when merging (inherited from the original notebook), which often sent the LLM *less* context than the baseline. A retest with a better merge is planned.
+
+**Caveats:** each setup was run once. Generation and judging are not fully deterministic, so differences under ~0.15 should be treated with care. The judge uses the same model as the generator, which may bias scores.
+
+### Resolved hard case
+
+Iceland geothermal turbines (answer: Japan, article 47341). The correct chunk ranked #12 in vector search, so top-5 retrieval missed it and the system answered "I don't know." With reranking, it moves to #1 and the system answers correctly with a citation.
+
+## Reproducing the evals
+
+```bash
+python -m scripts.eval_retrieval                           # retrieval, current settings
+python -m scripts.eval_retrieval --rerank                  # retrieval with reranker
+python -m scripts.eval_answers --name my_run               # full answer eval
+python -m scripts.eval_answers --name k10 --top-k 10       # override a setting
+```
