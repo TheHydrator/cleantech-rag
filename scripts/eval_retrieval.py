@@ -13,12 +13,15 @@ from rag.retrieval import search
 load_dotenv()
 K_VALUES = [5, 10, 20]
 EXACT = "--exact" in sys.argv
+RERANK = "--rerank" in sys.argv
 EF = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--ef=")), None)
+
+if RERANK:
+    from rag.rerank import rerank
 
 items = load_50_questions()
 vectors = get_question_vectors(items)
-rows = []
-search_times = []
+rows, search_times, rerank_times = [], [], []
 
 with connect() as conn:
     if EXACT:
@@ -30,6 +33,11 @@ with connect() as conn:
         t = time.perf_counter()
         results = search(conn, query_vec, k=max(K_VALUES))
         search_times.append(time.perf_counter() - t)
+
+        if RERANK:
+            t = time.perf_counter()
+            results = rerank(item["question"], results, top_n=len(results))  # reorder all 20
+            rerank_times.append(time.perf_counter() - t)
 
         ranked_articles = [r[0] for r in results]
         expected = set(item["article_ids"])
@@ -47,10 +55,18 @@ for k in K_VALUES:
     print(f"recall@{k}: {avg:.3f}")
 
 os.makedirs("results", exist_ok=True)
-out_file = "results/retrieval_exact.json" if EXACT else "results/retrieval_baseline.json"
+if EXACT:
+    out_file = "results/retrieval_exact.json"
+elif RERANK:
+    out_file = "results/retrieval_rerank.json"
+else:
+    out_file = "results/retrieval_baseline.json"
 with open(out_file, "w") as f:
     json.dump(rows, f, indent=2)
 print(f"\nSaved to {out_file}")
 
-times_ms = np.array(search_times) * 1000
-print(f"Search latency: p50 = {np.percentile(times_ms, 50):.0f} ms, p95 = {np.percentile(times_ms, 95):.0f} ms")
+search_ms = np.array(search_times) * 1000
+print(f"Search latency: p50 = {np.percentile(search_ms, 50):.0f} ms, p95 = {np.percentile(search_ms, 95):.0f} ms")
+if RERANK:
+    rerank_ms = np.array(rerank_times) * 1000
+    print(f"Rerank latency: p50 = {np.percentile(rerank_ms, 50):.0f} ms, p95 = {np.percentile(rerank_ms, 95):.0f} ms")
