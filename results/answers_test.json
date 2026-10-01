@@ -1,0 +1,56 @@
+{
+  "config": {
+    "name": "test",
+    "top_k": 5,
+    "rerank": false,
+    "fetch_k": 20,
+    "hyde": false,
+    "limit": 3
+  },
+  "summary": {
+    "questions": 3,
+    "avg_score": 1.67,
+    "judge_errors": 0,
+    "refusals": 2,
+    "avg_recall": 0.333,
+    "latency_p50_s": 6.9,
+    "latency_p95_s": 15.3,
+    "avg_tokens_in": 1011,
+    "avg_tokens_out": 125
+  },
+  "rows": [
+    {
+      "num": 1,
+      "score": 3,
+      "reason": "The system answer partially covers the topic but misses specific examples and details provided in the reference answer, such as the Kosice project and the specific operational model of Diverso Energy.",
+      "refused": false,
+      "recall": 0.5,
+      "latency_s": 16.19,
+      "tokens_in": 941,
+      "tokens_out": 355,
+      "answer": "Innovative business models and national policy support play crucial roles in overcoming the high upfront costs traditionally associated with geothermal heating. Innovative business models, such as those developed by companies like Diverso Energy, aim to make geothermal projects more affordable in the long term. These models are designed to create a level playing field by integrating tax incentives and adapting to aggressive government policies that set stringent carbon and energy targets for new buildings. This approach not only addresses the initial financial barriers but also encourages the adoption of geothermal technology by making it more economically viable over time [47487].\n\nOn the policy side, governments have implemented various measures to support the geothermal sector. These include regulatory frameworks, financial incentives, and feed-in tariffs, which collectively facilitate the deployment of geothermal projects. Such policies result in increased investment and research in geothermal energy, thereby reducing the financial burden of initial costs. For example, the extension of Canada\u2019s Clean Tax Credit to cover capital and manufacturing costs for geothermal energy projects offers a significant financial incentive by providing tax relief equal to 30% of these costs [47487].\n\nFurthermore, risk mitigation schemes are crucial in addressing the resource risks associated with the early stages of geothermal development. These schemes vary depending on the market's maturity; in nascent markets, public funds are predominantly used for risk mitigation, while in mature markets, resource risk insurance schemes are more common. These risk mitigation instruments are key enablers for geothermal market growth, as they reduce the perceived financial risk and encourage more stakeholders to invest in geothermal technology [47379].\n\nOverall, the combination of innovative business models and supportive national policies effectively addresses the high upfront costs of geothermal heating, making it a more attractive option for developers and investors [47487][47379]."
+    },
+    {
+      "num": 2,
+      "score": 1,
+      "reason": "The system answer explicitly states it does not know the answer, providing no information on the topic.",
+      "refused": true,
+      "recall": 0.5,
+      "latency_s": 6.92,
+      "tokens_in": 1145,
+      "tokens_out": 10,
+      "answer": "I don't know based on the available articles."
+    },
+    {
+      "num": 3,
+      "score": 1,
+      "reason": "The system's answer fails to provide any information and explicitly states it does not know the answer.",
+      "refused": true,
+      "recall": 0.0,
+      "latency_s": 4.16,
+      "tokens_in": 948,
+      "tokens_out": 10,
+      "answer": "I don't know based on the available articles."
+    }
+  ]
+}
