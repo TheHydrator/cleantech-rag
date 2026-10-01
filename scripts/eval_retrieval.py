@@ -1,6 +1,8 @@
 import json
 import os
 import sys
+import time
+import numpy as np
 
 from dotenv import load_dotenv
 
@@ -15,6 +17,7 @@ EF = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--ef=")), Non
 
 items = load_50_questions()
 rows = []
+search_times = []
 
 with connect() as conn:
     if EXACT:
@@ -23,7 +26,11 @@ with connect() as conn:
         conn.execute(f"SET hnsw.ef_search = {EF}")
 
     for item in items:
-        results = search(conn, embed_query(item["question"]), k=max(K_VALUES))
+        # results = search(conn, embed_query(item["question"]), k=max(K_VALUES))
+        query_vec = embed_query(item["question"])
+        t = time.perf_counter()
+        results = search(conn, query_vec, k=max(K_VALUES))
+        search_times.append(time.perf_counter() - t)
         ranked_articles = [r[0] for r in results]
         expected = set(item["article_ids"])
 
@@ -44,3 +51,6 @@ out_file = "results/retrieval_exact.json" if EXACT else "results/retrieval_basel
 with open(out_file, "w") as f:
     json.dump(rows, f, indent=2)
 print(f"\nSaved to {out_file}")
+
+times_ms = np.array(search_times) * 1000
+print(f"Search latency: p50 = {np.percentile(times_ms, 50):.0f} ms, p95 = {np.percentile(times_ms, 95):.0f} ms")
