@@ -2,13 +2,13 @@ import json
 import os
 import sys
 import time
-import numpy as np
 
+import numpy as np
 from dotenv import load_dotenv
 
 from rag.db import connect
-from rag.eval_data import load_50_questions
-from rag.retrieval import embed_query, search
+from rag.eval_data import get_question_vectors, load_50_questions
+from rag.retrieval import search
 
 load_dotenv()
 K_VALUES = [5, 10, 20]
@@ -16,6 +16,7 @@ EXACT = "--exact" in sys.argv
 EF = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--ef=")), None)
 
 items = load_50_questions()
+vectors = get_question_vectors(items)
 rows = []
 search_times = []
 
@@ -25,12 +26,11 @@ with connect() as conn:
     if EF:
         conn.execute(f"SET hnsw.ef_search = {EF}")
 
-    for item in items:
-        # results = search(conn, embed_query(item["question"]), k=max(K_VALUES))
-        query_vec = embed_query(item["question"])
+    for item, query_vec in zip(items, vectors):
         t = time.perf_counter()
         results = search(conn, query_vec, k=max(K_VALUES))
         search_times.append(time.perf_counter() - t)
+
         ranked_articles = [r[0] for r in results]
         expected = set(item["article_ids"])
 
