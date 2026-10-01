@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -9,11 +10,18 @@ from rag.retrieval import embed_query, search
 
 load_dotenv()
 K_VALUES = [5, 10, 20]
+EXACT = "--exact" in sys.argv
+EF = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--ef=")), None)
 
 items = load_50_questions()
 rows = []
 
 with connect() as conn:
+    if EXACT:
+        conn.execute("SET enable_indexscan = off")
+    if EF:
+        conn.execute(f"SET hnsw.ef_search = {EF}")
+
     for item in items:
         results = search(conn, embed_query(item["question"]), k=max(K_VALUES))
         ranked_articles = [r[0] for r in results]
@@ -32,6 +40,7 @@ for k in K_VALUES:
     print(f"recall@{k}: {avg:.3f}")
 
 os.makedirs("results", exist_ok=True)
-with open("results/retrieval_baseline.json", "w") as f:
+out_file = "results/retrieval_exact.json" if EXACT else "results/retrieval_baseline.json"
+with open(out_file, "w") as f:
     json.dump(rows, f, indent=2)
-print("\nSaved to results/retrieval_baseline.json")
+print(f"\nSaved to {out_file}")
