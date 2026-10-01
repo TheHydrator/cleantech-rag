@@ -6,3 +6,5 @@ python-dotenv
 langchain-text-splitters
 langgraph
 sentence-transformers
+fastapi
+uvicorn[standard]
