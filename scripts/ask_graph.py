@@ -19,5 +19,6 @@ if state.get("hypothesis"):
 if state.get("hyde_error"):
     print(f"HyDE failed, fell back to normal search: {state['hyde_error']}\n")
 print(f"Answer:\n{state['final_answer']}\n")
+print(f"Grade: {state['grade']}  ({state.get('grade_reasoning', '')})\n")
 print("Sources:", ", ".join(f"{r[0]} ({r[4]:.2f})" for r in state["retrieved"]))
 print(f"Tokens: {state['usage']['in']} in, {state['usage']['out']} out")
