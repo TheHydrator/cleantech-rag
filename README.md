@@ -1,5 +1,7 @@
 # CleanTech RAG
 
+![CI](https://github.com/TheHydrator/cleantech-rag/actions/workflows/ci.yml/badge.svg)
+
 Production redeploy of my Agentic RAG system: FastAPI, Postgres + pgvector, Docker, k3s.
 
 ## Pipeline
