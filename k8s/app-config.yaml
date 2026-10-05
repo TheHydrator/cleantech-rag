@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: rag
+data:
+  TOP_K: "10"
+  FETCH_K: "20"
+  RERANK: "true"
+  RERANK_MODEL: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  GRADER: "true"
+  HNSW_EF_SEARCH: "200"
+  LLM_MODEL: "gpt-4-turbo"
+  OPENAI_MAX_RETRIES: "1"
+  OPENAI_TIMEOUT: "30"
