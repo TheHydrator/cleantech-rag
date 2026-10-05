@@ -49,6 +49,7 @@ resource "hcloud_server" "rag" {
   location     = var.location
   ssh_keys     = [hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.rag.id]
+  user_data    = file("${path.module}/cloud-init.yaml")
 
   public_net {
     ipv4_enabled = true
