@@ -25,3 +25,28 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -v
+
+  image:
+    needs: test                              # only runs if the tests passed
+    if: github.event_name == 'push'          # pull requests test, but don't publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write                        # allows publishing to ghcr.io
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v5
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/thehydrator/cleantech-rag:${{ github.sha }}
