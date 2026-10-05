@@ -1,7 +1,0 @@
-global:
-  scrape_interval: 15s   # read /metrics every 15 seconds
-
-scrape_configs:
-  - job_name: rag-app
-    static_configs:
-      - targets: ["app:8000"]   # the app container, by its service name
