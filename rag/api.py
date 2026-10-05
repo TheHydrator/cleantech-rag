@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from fastapi import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
 load_dotenv()  # must run before importing rag modules that read settings
 
 from rag.db import connect
@@ -14,6 +17,19 @@ from rag.query_log import log_query
 logger = logging.getLogger("rag.api")
 app = FastAPI(title="CleanTech RAG")
 rag_graph = build_graph()  # built once at startup, reused for every request
+
+ASK_REQUESTS = Counter("rag_ask_requests_total", "Number of /ask requests", ["status"])
+ASK_LATENCY = Histogram(
+    "rag_ask_latency_seconds", "End-to-end /ask latency",
+    buckets=(0.5, 1, 2, 5, 10, 15, 20, 30, 60),
+)
+ASK_TOKENS = Counter("rag_tokens_total", "LLM tokens used by /ask", ["direction"])
+ASK_GRADES = Counter("rag_answer_grades_total", "Grader verdicts", ["grade"])
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 class AskRequest(BaseModel):
@@ -48,18 +64,28 @@ def health():
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
     start = time.perf_counter()
-    settings = _settings({})  # the effective setup: top_k, rerank, etc.
+    settings = _settings({})
 
     try:
         state = rag_graph.invoke({"query": req.question})
     except Exception as e:
+        elapsed = time.perf_counter() - start
         logger.exception("ask failed")
-        log_query(req.question, int((time.perf_counter() - start) * 1000), "error",
+        ASK_REQUESTS.labels(status="error").inc()
+        ASK_LATENCY.observe(elapsed)
+        log_query(req.question, int(elapsed * 1000), "error",
                   error=f"{type(e).__name__}: {e}"[:1000], settings=settings)
         raise HTTPException(status_code=502, detail="Upstream model or database error")
 
+    elapsed = time.perf_counter() - start
+    ASK_REQUESTS.labels(status="ok").inc()
+    ASK_LATENCY.observe(elapsed)
+    ASK_TOKENS.labels(direction="in").inc(state["usage"]["in"])
+    ASK_TOKENS.labels(direction="out").inc(state["usage"]["out"])
+    ASK_GRADES.labels(grade=state["grade"]).inc()
+
     log_query(
-        req.question, int((time.perf_counter() - start) * 1000), "ok",
+        req.question, int(elapsed * 1000), "ok",
         answer=state["final_answer"], grade=state["grade"],
         tokens_in=state["usage"]["in"], tokens_out=state["usage"]["out"],
         article_ids=[r[0] for r in state["retrieved"]], settings=settings,

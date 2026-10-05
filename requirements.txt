@@ -8,3 +8,4 @@ langgraph
 sentence-transformers
 fastapi
 uvicorn[standard]
+prometheus-client
