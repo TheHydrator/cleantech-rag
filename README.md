@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/TheHydrator/cleantech-rag/actions/workflows/ci.yml/badge.svg)
 
-Production redeploy of my Agentic RAG system over 20,111 clean-tech news articles: LangGraph, FastAPI, Postgres + pgvector, Docker, Prometheus, Grafana. Kubernetes (k3s) deployment in progress.
+Production redeploy of my Agentic RAG system over 20,111 clean-tech news articles: LangGraph, FastAPI, Postgres + pgvector, Docker, Prometheus, Grafana, Kubernetes (k3s), Terraform. Infrastructure is built and rehearsed locally; deployment to a Hetzner VPS is in progress.
 
 ## Pipeline
 
@@ -45,6 +45,22 @@ Prometheus scrapes `/metrics` every 15 seconds. Grafana ships with a provisioned
 ### CI
 
 GitHub Actions runs the test suite on every push. The tests replace the LangGraph pipeline and the database logger with fakes, so CI needs no API key, no database, and makes no paid calls.
+
+After the tests pass, a second job builds the app image on an x86 runner and publishes it to `ghcr.io/thehydrator/cleantech-rag`, tagged with the commit SHA. Untested code is never published, and every running version maps to an exact commit.
+
+## Infrastructure
+
+**Kubernetes (`k8s/`).** Postgres runs as a StatefulSet with a persistent volume and a memory-backed `/dev/shm` sized for HNSW index builds. The app runs as a Deployment with three probes:
+
+- **startup:** allows up to 2 minutes to load PyTorch and the reranker
+- **readiness:** uses `/health`, which checks the database, so the app stops receiving traffic when Postgres is unreachable
+- **liveness:** checks only that the port is open, so a database outage never triggers an app restart loop
+
+Settings live in a ConfigMap. The API key and database URL live in a Secret created from the command line, never in Git. Rehearsed locally with k3d, including a deliberate pod deletion to confirm self-healing.
+
+**Terraform (`infra/`).** Defines a Hetzner CX33 server (Ubuntu 24.04, 4 vCPU, 8 GB RAM), an SSH key, and a firewall: SSH and the Kubernetes API are open only to the admin IP, web ports to everyone, and Postgres, Prometheus, and Grafana are not exposed at all. On first boot, cloud-init installs k3s pinned to the same version used in the local rehearsal.
+
+**Backups.** The database is backed up with `pg_dump` and restored with `pg_restore`. Every restore is verified by running the retrieval eval against the new copy: an exact match with the baseline (0.433 / 0.493 / 0.593) proves the vectors and HNSW index are intact.
 
 ## Settings
 
@@ -180,7 +196,9 @@ python -m scripts.eval_answers --name k10 --top-k 10       # override a setting
 
 - [x] Ingestion, HNSW tuning, reranking, grader
 - [x] Retrieval and answer-level evals
-- [x] FastAPI service, query logging, Prometheus + Grafana, CI
-- [ ] Kubernetes (k3s) manifests, rehearsed locally with k3d
-- [ ] Terraform for the VPS
-- [ ] Deploy and operate for ~3 months: drift detection, load testing, cost optimization
+- [x] FastAPI service, query logging, Prometheus + Grafana
+- [x] CI: tests on every push, image published to ghcr.io after tests pass
+- [x] Kubernetes manifests, rehearsed locally with k3d
+- [x] Terraform for the Hetzner VPS, with k3s installed via cloud-init
+- [ ] Deploy to the VPS
+- [ ] Operate for ~3 months: drift detection, load testing, cost optimization
