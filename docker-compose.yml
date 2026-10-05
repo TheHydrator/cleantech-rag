@@ -23,5 +23,16 @@ services:
     depends_on:
       - db
 
+  prometheus:
+    image: prom/prometheus:latest   # pin to a specific version once it works
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
 volumes:
   pgdata:
+  promdata:
