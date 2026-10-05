@@ -24,8 +24,10 @@ class FakeGraph:
         return self.state
 
 
-def client_with(monkeypatch, graph):
+def client_with(monkeypatch, graph, logged=None):
     monkeypatch.setattr(api, "rag_graph", graph)
+    # Capture log calls instead of writing to the real database
+    monkeypatch.setattr(api, "log_query", lambda *a, **k: logged.append((a, k)) if logged is not None else None)
     return TestClient(api.app)
 
 
@@ -52,3 +54,13 @@ def test_ask_returns_502_when_pipeline_fails(monkeypatch):
 
     assert response.status_code == 502
     assert "OpenAI" not in response.text  # internal details never leak to users
+
+def test_failed_request_is_logged_as_error(monkeypatch):
+    logged = []
+    client = client_with(monkeypatch, FakeGraph(error=RuntimeError("OpenAI is down")), logged)
+    client.post("/ask", json={"question": "What is green hydrogen?"})
+
+    assert len(logged) == 1
+    args, kwargs = logged[0]
+    assert args[2] == "error"
+    assert "OpenAI is down" in kwargs["error"]

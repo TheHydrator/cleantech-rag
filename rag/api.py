@@ -1,13 +1,15 @@
 import logging
+import time
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-load_dotenv()
+load_dotenv()  # must run before importing rag modules that read settings
 
 from rag.db import connect
-from rag.graph import build_graph
+from rag.graph import _settings, build_graph
+from rag.query_log import log_query
 
 logger = logging.getLogger("rag.api")
 app = FastAPI(title="CleanTech RAG")
@@ -45,11 +47,23 @@ def health():
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
+    start = time.perf_counter()
+    settings = _settings({})  # the effective setup: top_k, rerank, etc.
+
     try:
         state = rag_graph.invoke({"query": req.question})
-    except Exception:
-        logger.exception("ask failed")  # full error goes to the server logs
+    except Exception as e:
+        logger.exception("ask failed")
+        log_query(req.question, int((time.perf_counter() - start) * 1000), "error",
+                  error=f"{type(e).__name__}: {e}"[:1000], settings=settings)
         raise HTTPException(status_code=502, detail="Upstream model or database error")
+
+    log_query(
+        req.question, int((time.perf_counter() - start) * 1000), "ok",
+        answer=state["final_answer"], grade=state["grade"],
+        tokens_in=state["usage"]["in"], tokens_out=state["usage"]["out"],
+        article_ids=[r[0] for r in state["retrieved"]], settings=settings,
+    )
 
     return AskResponse(
         answer=state["final_answer"],

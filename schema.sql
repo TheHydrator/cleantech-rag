@@ -16,3 +16,20 @@ CREATE TABLE IF NOT EXISTS chunks (
     embedding    vector(1536) NOT NULL,
     UNIQUE (article_id, chunk_index)
 );
+
+CREATE TABLE IF NOT EXISTS query_logs (
+    id                     BIGSERIAL PRIMARY KEY,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    question               TEXT NOT NULL,
+    answer                 TEXT,
+    grade                  TEXT,
+    status                 TEXT NOT NULL,      -- 'ok' or 'error'
+    error                  TEXT,
+    latency_ms             INTEGER NOT NULL,
+    tokens_in              INTEGER,
+    tokens_out             INTEGER,
+    retrieved_article_ids  INTEGER[],
+    settings               JSONB
+);
+
+CREATE INDEX IF NOT EXISTS query_logs_created_at_idx ON query_logs (created_at);
