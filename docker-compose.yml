@@ -16,6 +16,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://rag:rag_local_pw@db:5432/cleantech
+      OPENAI_MAX_RETRIES: "1"
+      OPENAI_TIMEOUT: "30"
     ports:
       - "8000:8000"
     depends_on:

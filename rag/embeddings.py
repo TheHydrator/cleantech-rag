@@ -10,8 +10,12 @@ _client = None
 def get_client():
     global _client
     if _client is None:
-        # max_retries: if OpenAI says "slow down", wait and try again, up to 5 times
-        _client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], max_retries=5)
+        _client = OpenAI(
+            api_key=os.environ["OPENAI_API_KEY"],
+            # Batch jobs can afford patience; a waiting user cannot
+            max_retries=int(os.environ.get("OPENAI_MAX_RETRIES", 5)),
+            timeout=float(os.environ.get("OPENAI_TIMEOUT", 60)),
+        )
     return _client
 
 
