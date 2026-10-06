@@ -4,6 +4,7 @@ import time
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
 
 from fastapi import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -15,7 +16,17 @@ from rag.graph import _settings, build_graph
 from rag.query_log import log_query
 
 logger = logging.getLogger("rag.api")
-app = FastAPI(title="CleanTech RAG")
+@asynccontextmanager
+async def lifespan(app):
+    # Warm up before serving traffic, so no user pays the first-request cost
+    if _settings({})["rerank"]:
+        from rag.rerank import get_model
+        get_model().predict([("warm up", "warm up")])
+        logger.info("reranker warmed up")
+    yield
+
+
+app = FastAPI(title="CleanTech RAG", lifespan=lifespan)
 rag_graph = build_graph()  # built once at startup, reused for every request
 
 ASK_REQUESTS = Counter("rag_ask_requests_total", "Number of /ask requests", ["status"])
