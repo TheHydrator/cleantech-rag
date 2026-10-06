@@ -23,12 +23,14 @@ class FakeGraph:
             raise self.error
         return self.state
 
-
 def client_with(monkeypatch, graph, logged=None):
     monkeypatch.setattr(api, "rag_graph", graph)
     # Capture log calls instead of writing to the real database
     monkeypatch.setattr(api, "log_query", lambda *a, **k: logged.append((a, k)) if logged is not None else None)
     monkeypatch.setattr(api, "ACCESS_CODE", "")  # tests run without a code unless they set one
+    api._recent_asks.clear()                      # each test starts with a fresh count
+    monkeypatch.setattr(api, "MAX_ASK_PER_HOUR", 100)
+    monkeypatch.setattr(api, "MAX_ASK_PER_DAY", 100)
     return TestClient(api.app)
 
 
@@ -84,3 +86,12 @@ def test_ask_accepts_correct_access_code(monkeypatch):
         headers={"X-Access-Code": "friends-only"},
     )
     assert response.status_code == 200
+
+def test_ask_returns_429_when_hourly_limit_hit(monkeypatch):
+    client = client_with(monkeypatch, FakeGraph(state=FAKE_STATE))
+    monkeypatch.setattr(api, "MAX_ASK_PER_HOUR", 2)
+    body = {"question": "What is green hydrogen?"}
+
+    assert client.post("/ask", json=body).status_code == 200
+    assert client.post("/ask", json=body).status_code == 200
+    assert client.post("/ask", json=body).status_code == 429

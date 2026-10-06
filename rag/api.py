@@ -3,7 +3,9 @@ import os
 import secrets
 import time
 from contextlib import asynccontextmanager
+import threading
 
+from collections import deque
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Response, Security
 from fastapi.security import APIKeyHeader
@@ -38,6 +40,24 @@ def require_access_code(code: str | None = Security(access_code_header)):
     """Reject /ask requests without the right code. Disabled when ACCESS_CODE is empty (local dev)."""
     if ACCESS_CODE and not (code and secrets.compare_digest(code, ACCESS_CODE)):
         raise HTTPException(status_code=401, detail="Missing or invalid access code")
+
+MAX_ASK_PER_HOUR = int(os.environ.get("MAX_ASK_PER_HOUR", "20"))
+MAX_ASK_PER_DAY = int(os.environ.get("MAX_ASK_PER_DAY", "100"))
+_recent_asks = deque()          # timestamps of /ask calls in the last 24 hours
+_rate_lock = threading.Lock()   # requests run in parallel threads
+
+
+def within_limits():
+    """Global caps that protect the OpenAI budget. Returns False if a limit is hit."""
+    now = time.time()
+    with _rate_lock:
+        while _recent_asks and now - _recent_asks[0] > 86400:
+            _recent_asks.popleft()
+        last_hour = sum(1 for t in _recent_asks if now - t <= 3600)
+        if last_hour >= MAX_ASK_PER_HOUR or len(_recent_asks) >= MAX_ASK_PER_DAY:
+            return False
+        _recent_asks.append(now)
+        return True
 
 ASK_REQUESTS = Counter("rag_ask_requests_total", "Number of /ask requests", ["status"])
 ASK_LATENCY = Histogram(
@@ -84,6 +104,9 @@ def health():
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest, _: None = Depends(require_access_code)):
+    if not within_limits():
+        ASK_REQUESTS.labels(status="rate_limited").inc()
+        raise HTTPException(status_code=429, detail="Too many questions right now. Please try again later.")
     start = time.perf_counter()
     settings = _settings({})
 
