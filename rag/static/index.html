@@ -102,6 +102,8 @@
     .sources .num { flex: 0 0 22px; font-weight: 600; color: var(--pine); font-size: 0.9375rem; padding-top: 1px; }
     .sources .title { display: block; }
     .sources .meta { display: block; color: var(--muted); font-size: 0.875rem; }
+    .sources a.title { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+    .sources a.title:hover { color: var(--pine); text-decoration-color: currentColor; }
 
     footer { max-width: 680px; margin: 0 auto; padding: 0 24px 48px; color: var(--muted); font-size: 0.875rem; }
     footer a { color: var(--muted); text-underline-offset: 3px; }
@@ -239,9 +241,11 @@
         verdictEl.className = "verdict warn";
         verdictEl.textContent = "Parts of this answer couldn't be verified";
       }
-
+      
       const titles = new Map();
-      for (const s of data.sources || []) if (!titles.has(s.article_id)) titles.set(s.article_id, s.title);
+      for (const s of data.sources || []) {
+        if (!titles.has(s.article_id)) titles.set(s.article_id, { title: s.title, url: s.url });
+      }
 
       const numbers = new Map();
       const text = raw.replace(/\]\s*,\s*\[/g, "][");
@@ -282,12 +286,23 @@
           num.className = "num";
           num.textContent = n;
           const body = document.createElement("span");
-          const title = document.createElement("span");
+          const info = titles.get(id);
+          const safeUrl = info.url && /^https?:\/\//i.test(info.url) ? info.url : null;
+          const title = document.createElement(safeUrl ? "a" : "span");
           title.className = "title";
-          title.textContent = titles.get(id);
+          title.textContent = info.title;
+          if (safeUrl) {
+            title.href = safeUrl;
+            title.target = "_blank";
+            title.rel = "noopener noreferrer";
+          }
           const meta = document.createElement("span");
           meta.className = "meta";
-          meta.textContent = "Article " + id;
+          try {
+            meta.textContent = safeUrl ? new URL(safeUrl).hostname.replace(/^www\./, "") : "Article " + id;
+          } catch {
+            meta.textContent = "Article " + id;
+          }
           body.append(title, meta);
           li.append(num, body);
           sourceList.append(li);

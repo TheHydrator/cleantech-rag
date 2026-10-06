@@ -28,7 +28,8 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     t3 = time.time()
 
 print(f"Question: {question}\n")
-for article_id, chunk_index, title, content, similarity in results:
+
+for article_id, chunk_index, title, content, similarity, *_ in results:
     print(f"[{similarity:.3f}] article {article_id}, chunk {chunk_index}: {title}")
     print(f"    {content[:150]}...\n")
 

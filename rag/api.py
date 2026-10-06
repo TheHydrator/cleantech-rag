@@ -90,6 +90,7 @@ class Source(BaseModel):
     article_id: int
     title: str
     similarity: float
+    url: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -149,7 +150,8 @@ def ask(req: AskRequest, _: None = Depends(require_access_code)):
         answer=state["final_answer"],
         grade=state["grade"],
         sources=[
-            Source(article_id=r[0], title=r[2], similarity=round(float(r[4]), 3))
+            Source(article_id=r[0], title=r[2], similarity=round(float(r[4]), 3),
+                   url=r[5] if len(r) > 5 else None)
             for r in state["retrieved"]
         ],
         tokens_in=state["usage"]["in"],

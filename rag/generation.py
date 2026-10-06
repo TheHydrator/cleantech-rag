@@ -8,10 +8,10 @@ Cite the article IDs you used in square brackets, like [43333]."""
 
 def build_context(results):
     parts = []
-    for article_id, chunk_index, title, content, similarity in results:
+    for r in results:
+        article_id, title, content = r[0], r[2], r[3]
         parts.append(f"[{article_id}] {title}\n{content}")
     return "\n\n---\n\n".join(parts)
-
 
 def generate_answer(question, results):
     response = get_client().chat.completions.create(

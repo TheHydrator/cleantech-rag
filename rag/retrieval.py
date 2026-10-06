@@ -11,7 +11,7 @@ def search(conn, query_vec, k=5):
     """Return the k chunks closest in meaning to the query vector."""
     return conn.execute(
         """SELECT c.article_id, c.chunk_index, a.title, c.content,
-                  1 - (c.embedding <=> %s) AS similarity
+                  1 - (c.embedding <=> %s) AS similarity, a.url
            FROM chunks c
            JOIN articles a ON a.id = c.article_id
            ORDER BY c.embedding <=> %s

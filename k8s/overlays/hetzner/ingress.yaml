@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: app
   namespace: rag
-  annotations:
+  annotations
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
