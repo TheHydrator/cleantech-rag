@@ -2,8 +2,9 @@ resources:
   - ../../base
   - ingress.yaml
   - cluster-issuers.yaml
+  - redirect-https.yaml
 
 images:
   - name: cleantech-rag-app
     newName: ghcr.io/thehydrator/cleantech-rag
-    newTag: 09e23e14bdb55a125f88fe51238da230e21707db
+    newTag: 51b7200cea134f008c703841e5e9cfbc04a58098

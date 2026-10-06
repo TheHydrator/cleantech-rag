@@ -3,8 +3,9 @@ kind: Ingress
 metadata:
   name: app
   namespace: rag
-  annotations
+  annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: rag-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
@@ -15,6 +16,13 @@ spec:
     - host: 2-31-23-140.sslip.io
       http:
         paths:
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8000
           - path: /ask
             pathType: Exact
             backend:
