@@ -67,6 +67,14 @@ def within_limits():
         _recent_asks.append(now)
         return True
 
+def is_out_of_credits(e):
+    """True if OpenAI rejected the call because the prepaid balance is empty."""
+    from openai import RateLimitError
+    return isinstance(e, RateLimitError) and (
+        getattr(e, "type", None) == "insufficient_quota"
+        or getattr(e, "code", None) in ("insufficient_quota", "credit_balance_exhausted")
+    )
+
 ASK_REQUESTS = Counter("rag_ask_requests_total", "Number of /ask requests", ["status"])
 ASK_LATENCY = Histogram(
     "rag_ask_latency_seconds", "End-to-end /ask latency",
@@ -130,6 +138,8 @@ def ask(req: AskRequest, _: None = Depends(require_access_code)):
         ASK_LATENCY.observe(elapsed)
         log_query(req.question, int(elapsed * 1000), "error",
                   error=f"{type(e).__name__}: {e}"[:1000], settings=settings)
+        if is_out_of_credits(e):
+            raise HTTPException(status_code=503, detail="This demo has reached its usage budget. Try again later.")
         raise HTTPException(status_code=502, detail="Upstream model or database error")
 
     elapsed = time.perf_counter() - start

@@ -13,3 +13,5 @@ data:
   LLM_MODEL: "gpt-4-turbo"
   OPENAI_MAX_RETRIES: "1"
   OPENAI_TIMEOUT: "30"
+  MAX_ASK_PER_HOUR: "10"
+  MAX_ASK_PER_DAY: "40"

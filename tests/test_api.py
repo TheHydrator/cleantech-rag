@@ -1,6 +1,8 @@
-from fastapi.testclient import TestClient
-
+import httpx
+import openai
 import rag.api as api
+
+from fastapi.testclient import TestClient
 
 FAKE_STATE = {
     "final_answer": "Japanese companies supply most of the turbines [47341].",
@@ -95,3 +97,16 @@ def test_ask_returns_429_when_hourly_limit_hit(monkeypatch):
     assert client.post("/ask", json=body).status_code == 200
     assert client.post("/ask", json=body).status_code == 200
     assert client.post("/ask", json=body).status_code == 429
+
+def test_ask_returns_503_when_openai_credits_run_out(monkeypatch):
+    request = httpx.Request("POST", "https://api.openai.com/v1/embeddings")
+    quota_error = openai.RateLimitError(
+        "no credits",
+        response=httpx.Response(429, request=request),
+        body={"type": "insufficient_quota", "code": "credit_balance_exhausted"},
+    )
+    client = client_with(monkeypatch, FakeGraph(error=quota_error))
+    response = client.post("/ask", json={"question": "What is green hydrogen?"})
+
+    assert response.status_code == 503
+    assert "budget" in response.text

@@ -357,6 +357,7 @@
           return;
         }
         if (res.status === 429) { showError("The question limit for this hour has been reached. Try again later."); return; }
+        if (res.status === 503) { showError("This demo has reached its usage budget for now. Try again later."); return; }        
         if (res.status === 422) { showError("Questions need between 3 and 500 characters."); return; }
         if (!res.ok) { showError("The answer service didn't respond. Try again in a minute."); return; }
 
