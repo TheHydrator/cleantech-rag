@@ -3,10 +3,17 @@ kind: Ingress
 metadata:
   name: app
   namespace: rag
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - 2-31-23-140.sslip.io
+      secretName: app-tls
   rules:
-    - http:
+    - host: 2-31-23-140.sslip.io
+      http:
         paths:
           - path: /ask
             pathType: Exact
