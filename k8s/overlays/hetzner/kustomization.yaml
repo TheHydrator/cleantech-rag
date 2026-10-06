@@ -1,5 +1,6 @@
 resources:
   - ../../base
+  - ingress.yaml
 
 images:
   - name: cleantech-rag-app
