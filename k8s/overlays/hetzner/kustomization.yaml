@@ -1,0 +1,7 @@
+resources:
+  - ../../base
+
+images:
+  - name: cleantech-rag-app
+    newName: ghcr.io/thehydrator/cleantech-rag
+    newTag: c1dbcee6c8484eb71f39464871d1318502362302

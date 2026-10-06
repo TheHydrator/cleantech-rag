@@ -1,0 +1,5 @@
+resources:
+  - namespace.yaml
+  - db.yaml
+  - app-config.yaml
+  - app.yaml

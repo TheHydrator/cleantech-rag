@@ -1,0 +1,6 @@
+resources:
+  - ../../base
+
+images:
+  - name: cleantech-rag-app
+    newTag: v1
