@@ -1,13 +1,14 @@
 import logging
+import os
+import secrets
 import time
-
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
 
-from fastapi import Response
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Response, Security
+from fastapi.security import APIKeyHeader
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pydantic import BaseModel, Field
 
 load_dotenv()  # must run before importing rag modules that read settings
 
@@ -28,6 +29,15 @@ async def lifespan(app):
 
 app = FastAPI(title="CleanTech RAG", lifespan=lifespan)
 rag_graph = build_graph()  # built once at startup, reused for every request
+
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
+access_code_header = APIKeyHeader(name="X-Access-Code", auto_error=False)
+
+
+def require_access_code(code: str | None = Security(access_code_header)):
+    """Reject /ask requests without the right code. Disabled when ACCESS_CODE is empty (local dev)."""
+    if ACCESS_CODE and not (code and secrets.compare_digest(code, ACCESS_CODE)):
+        raise HTTPException(status_code=401, detail="Missing or invalid access code")
 
 ASK_REQUESTS = Counter("rag_ask_requests_total", "Number of /ask requests", ["status"])
 ASK_LATENCY = Histogram(
@@ -73,7 +83,7 @@ def health():
 
 
 @app.post("/ask", response_model=AskResponse)
-def ask(req: AskRequest):
+def ask(req: AskRequest, _: None = Depends(require_access_code)):
     start = time.perf_counter()
     settings = _settings({})
 

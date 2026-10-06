@@ -28,6 +28,7 @@ def client_with(monkeypatch, graph, logged=None):
     monkeypatch.setattr(api, "rag_graph", graph)
     # Capture log calls instead of writing to the real database
     monkeypatch.setattr(api, "log_query", lambda *a, **k: logged.append((a, k)) if logged is not None else None)
+    monkeypatch.setattr(api, "ACCESS_CODE", "")  # tests run without a code unless they set one
     return TestClient(api.app)
 
 
@@ -55,6 +56,7 @@ def test_ask_returns_502_when_pipeline_fails(monkeypatch):
     assert response.status_code == 502
     assert "OpenAI" not in response.text  # internal details never leak to users
 
+
 def test_failed_request_is_logged_as_error(monkeypatch):
     logged = []
     client = client_with(monkeypatch, FakeGraph(error=RuntimeError("OpenAI is down")), logged)
@@ -64,3 +66,21 @@ def test_failed_request_is_logged_as_error(monkeypatch):
     args, kwargs = logged[0]
     assert args[2] == "error"
     assert "OpenAI is down" in kwargs["error"]
+
+
+def test_ask_rejects_missing_access_code(monkeypatch):
+    client = client_with(monkeypatch, FakeGraph(state=FAKE_STATE))
+    monkeypatch.setattr(api, "ACCESS_CODE", "friends-only")
+    response = client.post("/ask", json={"question": "What is green hydrogen?"})
+    assert response.status_code == 401
+
+
+def test_ask_accepts_correct_access_code(monkeypatch):
+    client = client_with(monkeypatch, FakeGraph(state=FAKE_STATE))
+    monkeypatch.setattr(api, "ACCESS_CODE", "friends-only")
+    response = client.post(
+        "/ask",
+        json={"question": "What is green hydrogen?"},
+        headers={"X-Access-Code": "friends-only"},
+    )
+    assert response.status_code == 200
