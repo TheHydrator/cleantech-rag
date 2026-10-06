@@ -200,5 +200,5 @@ python -m scripts.eval_answers --name k10 --top-k 10       # override a setting
 - [x] CI: tests on every push, image published to ghcr.io after tests pass
 - [x] Kubernetes manifests, rehearsed locally with k3d
 - [x] Terraform for the Hetzner VPS, with k3s installed via cloud-init
-- [ ] Deploy to the VPS
+- [x] Deploy to the VPS
 - [ ] Operate for ~3 months: drift detection, load testing, cost optimization
