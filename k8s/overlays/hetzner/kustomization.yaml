@@ -4,4 +4,4 @@ resources:
 images:
   - name: cleantech-rag-app
     newName: ghcr.io/thehydrator/cleantech-rag
-    newTag: c1dbcee6c8484eb71f39464871d1318502362302
+    newTag: b2b83fd2ef711c2d1d7699dc38e3540abff7d04c
