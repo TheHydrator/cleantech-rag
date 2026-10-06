@@ -5,6 +5,8 @@ import time
 from contextlib import asynccontextmanager
 import threading
 
+from pathlib import Path
+from fastapi.responses import FileResponse
 from collections import deque
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Response, Security
@@ -31,6 +33,12 @@ async def lifespan(app):
 
 app = FastAPI(title="CleanTech RAG", lifespan=lifespan)
 rag_graph = build_graph()  # built once at startup, reused for every request
+
+INDEX_HTML = Path(__file__).parent / "static" / "index.html"
+
+@app.get("/", include_in_schema=False)
+def home():
+    return FileResponse(INDEX_HTML)
 
 ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
 access_code_header = APIKeyHeader(name="X-Access-Code", auto_error=False)
@@ -68,7 +76,8 @@ ASK_TOKENS = Counter("rag_tokens_total", "LLM tokens used by /ask", ["direction"
 ASK_GRADES = Counter("rag_answer_grades_total", "Grader verdicts", ["grade"])
 
 
-@app.get("/metrics")
+
+@app.get("/metrics", include_in_schema=False)
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
@@ -91,7 +100,8 @@ class AskResponse(BaseModel):
     tokens_out: int
 
 
-@app.get("/health")
+
+@app.get("/health", include_in_schema=False)
 def health():
     """Alive AND able to reach the database. Kubernetes will use this later."""
     try:

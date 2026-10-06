@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Download the reranker at build time, so the container never needs the internet to start
 RUN python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
 
+# The model is already in the image: never contact Hugging Face at runtime
+ENV HF_HUB_OFFLINE=1
+
 COPY rag ./rag
 
 EXPOSE 8000
