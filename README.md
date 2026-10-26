@@ -11,7 +11,7 @@ Built as a LangGraph graph: `retrieve → generate → grade`.
 1. **Embed the question** with `text-embedding-3-small` (1536 dims).
 2. **Vector search** in Postgres + pgvector using an HNSW index (`ef_search=200`). Fetch the 20 nearest chunks.
 3. **Rerank** those 20 chunks with the cross-encoder `cross-encoder/ms-marco-MiniLM-L-6-v2`, and keep the top 10.
-4. **Generate** an answer with `gpt-4-turbo`, using only the retrieved chunks and citing article IDs. If the chunks don't contain the answer, the model says so instead of guessing.
+4. **Generate** an answer with `gpt-4.1`, using only the retrieved chunks and citing article IDs. If the chunks don't contain the answer, the model says so instead of guessing.
 5. **Grade** the answer: a second LLM call checks whether every claim is supported by the retrieved chunks. Unsupported answers get a visible warning.
 
 ### The grader fails closed
@@ -62,6 +62,28 @@ Settings live in a ConfigMap. The API key and database URL live in a Secret crea
 
 **Backups.** The database is backed up with `pg_dump` and restored with `pg_restore`. Every restore is verified by running the retrieval eval against the new copy: an exact match with the baseline (0.433 / 0.493 / 0.593) proves the vectors and HNSW index are intact.
 
+### Incident: model retired (2026-10-26)
+
+**Symptom.** Every question on the public site showed "The answer service didn't respond." `/ask` returned 502 `Upstream model or database error` within about 2 s, while `/` still loaded.
+
+**Cause.** OpenAI retired `gpt-4-turbo`, the model behind generation, HyDE, the grader, and the judge. Every call failed with `404 model_not_found`. The model still appears in `models.list()`, so listing models does not show that it is retired.
+
+**Diagnosis was blocked.** The admin's home IP had changed, so the firewall rejected SSH and the Kubernetes API (`kubectl` hung). Web ports stayed open, which is why the site loaded but could not be inspected.
+
+**Fix.**
+
+1. Set `admin_ip` in `infra/terraform.tfvars` to the current IP (`curl ifconfig.me`), then run `terraform -chdir=infra apply`. This changes only the firewall.
+2. `kubectl -n rag logs deploy/app` showed the `model_not_found` error.
+3. Set `LLM_MODEL` to `gpt-4.1` in `k8s/base/app-config.yaml`. It is the closest drop-in replacement: it accepts `temperature=0`, which the GPT-5 reasoning models reject, and it costs less.
+4. Run `kubectl apply -k k8s/overlays/hetzner`, then `kubectl -n rag rollout restart deploy/app`. The restart is required because the model name is read from the environment at startup.
+5. Verified: the Iceland turbine question answers correctly with a citation and is graded `grounded`.
+
+**Lessons.**
+
+- A 502 from `/ask` means the exception is in the pod logs. Check the logs before changing anything.
+- Watch [OpenAI's deprecations page](https://platform.openai.com/docs/deprecations) for the configured model.
+- When `kubectl` hangs against Hetzner, check the admin IP first.
+
 ## Settings
 
 All configurable through environment variables:
@@ -73,7 +95,7 @@ All configurable through environment variables:
 | `RERANK` | true | enable the reranker |
 | `RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | reranker model |
 | `TOP_K` | 10 | chunks sent to the LLM |
-| `LLM_MODEL` | `gpt-4-turbo` | answer, grader, and judge model |
+| `LLM_MODEL` | `gpt-4.1` | answer, grader, and judge model |
 | `GRADER` | true | enable the grader node |
 | `OPENAI_MAX_RETRIES` | 5 (scripts), 1 (API) | retries on OpenAI errors |
 | `OPENAI_TIMEOUT` | 60 (scripts), 30 (API) | seconds before an OpenAI call is abandoned |
@@ -158,7 +180,7 @@ Retrieval metrics alone pointed toward bge at top 5. The answer-level eval showe
 
 HyDE did not help here, but this implementation keeps only one chunk per article when merging (inherited from the original notebook), which often sent the LLM *less* context than the baseline. A retest with a better merge is planned.
 
-**Caveats:** each setup was run once. Generation and judging are not fully deterministic, so differences under ~0.15 should be treated with care. The judge uses the same model as the generator, which may bias scores. A full 50-question run with the grader enabled is pending.
+**Caveats:** each setup was run once. Generation and judging are not fully deterministic, so differences under ~0.15 should be treated with care. The judge uses the same model as the generator, which may bias scores. A full 50-question run with the grader enabled is pending. These results were measured with `gpt-4-turbo`, before the switch to `gpt-4.1` (see the incident under Infrastructure). They have not been re-run.
 
 ### 4. Fail fast on unrecoverable errors
 

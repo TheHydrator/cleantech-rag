@@ -10,7 +10,7 @@ data:
   RERANK_MODEL: "cross-encoder/ms-marco-MiniLM-L-6-v2"
   GRADER: "true"
   HNSW_EF_SEARCH: "200"
-  LLM_MODEL: "gpt-4-turbo"
+  LLM_MODEL: "gpt-4.1"
   OPENAI_MAX_RETRIES: "1"
   OPENAI_TIMEOUT: "30"
   MAX_ASK_PER_HOUR: "10"
